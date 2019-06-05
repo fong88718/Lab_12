@@ -1,0 +1,70 @@
+#include "DHT.h"
+#include <LWiFi.h> 
+#include "LTimer.h"
+#include "MCS.h"
+
+#define DHTPIN 2  
+#define DHTTYPE DHT11  
+
+char _lwifi_ssid[] = "iPhone";                      //wifi名稱
+char _lwifi_pass[] = "19990718";                   //wifi密碼
+
+MCSDevice mcs("DRWIyesN", "sJWyFa0j9zaBwOHz");  // DeviceId , DeviceKey
+MCSDisplayFloat Temperature("Temperature");     //設置資料型態 及 (MCS上的) 資料通道 Id: Temperature
+MCSDisplayFloat Humidity("Humidity");           //設置資料型態 及 (MCS上的) 資料通道 Id: Humidity
+LTimer timer1(LTIMER_1);
+DHT dht(DHTPIN, DHTTYPE);
+float h, t, f;
+volatile int flag = 0;
+void _callback1(void *usr_data)
+{  
+   flag = 1;
+}
+void setup() 
+{
+    Serial.begin(9600); 
+    Serial.println("DHTxx test!");
+    dht.begin();
+    
+                      
+    mcs.addChannel(Temperature);                //設置到mcs上
+    mcs.addChannel(Humidity);                   //設置到mcs上
+    Serial.println("Wi-Fi 開始連線");   
+    while (WiFi.begin(_lwifi_ssid, _lwifi_pass) != WL_CONNECTED) { delay(1000); }
+    Serial.println("Wi-Fi 連線成功");
+    while(!mcs.connected()) { mcs.connect(); }
+    Serial.println("MCS 連線成功");
+    timer1.begin();
+    timer1.start(10000, LTIMER_REPEAT_MODE, _callback1, NULL);
+}
+
+void loop() 
+{
+    while (!mcs.connected()) {                  //判斷是否還連線mcs
+      mcs.connect();
+      if (mcs.connected()) { 
+          Serial.println("MCS 已重新連線"); 
+      }
+    }
+    mcs.process(1000);   
+    if(flag)
+    {
+         float h = dht.readHumidity();
+          float t = dht.readTemperature();
+          
+          if (isnan(t) || isnan(h)) {
+              Serial.println("Failed to read from DHT");
+          } 
+          else {
+              Serial.print("Humidity: "); 
+              Serial.print(h);
+              Serial.print(" %\t");
+              Serial.print("Temperature: "); 
+              Serial.print(t);
+              Serial.println(" *C");
+              Temperature.set(t);                     //溫度上傳
+              Humidity.set(h);                        //濕度上傳
+          }
+          flag = 0;
+    }
+}
